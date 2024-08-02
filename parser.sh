@@ -5,7 +5,7 @@ add_ip() {
 }
 
 check_ip() {
-  # https://stackoverflow.com/a/36760050
+  # Проверка на правильность IP-адреса (IPv4 или IPv4 с префиксом)
   if echo "$1" | grep -qP \
   '^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|(\/(3[0-2]|[12][0-9]|[0-9]))?$)){4}$'; then
     return 0
@@ -31,8 +31,22 @@ logger_failure() {
 CONFIG="/opt/etc/unblock/config"
 if [ -f "$CONFIG" ]; then
   . "$CONFIG"
+  echo "Значения переменных:"
+  echo "IFACE1=$IFACE1"
+  echo "IFACE2=$IFACE2"
+  echo "FILE1=$FILE1"
+  echo "FILE2=$FILE2"
 else
   logger_failure "Не удалось обнаружить файл \"config\"."
+fi
+
+# Проверка наличия файлов
+if [ ! -f "$FILE1" ]; then
+  logger_failure "Отсутствует файл \"$FILE1\"."
+fi
+
+if [ ! -f "$FILE2" ]; then
+  logger_failure "Отсутствует файл \"$FILE2\"."
 fi
 
 for _tool in dig grep ip rm seq sleep; do
@@ -67,9 +81,11 @@ process_file() {
     if check_ip "$line"; then
       add_ip "$line" "$_iface"
     else
-      dig_host=$(dig +short "$line" @localhost 2>&1 | grep -vE '[a-z]+' | cut_special)
+      dig_host=$(dig +short "$line" @localhost 2>/dev/null | grep -vE '[a-z]+' | cut_special)
       if [ -n "$dig_host" ]; then
-        for i in $dig_host; do check_ip "$i" && add_ip "$i" "$_iface"; done
+        for i in $dig_host; do
+          check_ip "$i" && add_ip "$i" "$_iface"
+        done
       else
         logger_msg "Не удалось разрешить доменное имя: строка \"${line}\" проигнорирована."
       fi
@@ -77,6 +93,7 @@ process_file() {
   done < "$_file"
 }
 
+# Очищаем таблицу маршрутизации один раз перед добавлением всех маршрутов
 if ip route flush table 1000; then
   logger_msg "Таблица маршрутизации #1000 очищена."
 else
@@ -89,4 +106,3 @@ process_file "$FILE2" "$IFACE2"
 logger_msg "Парсинг завершен. #1000: $(ip route list table 1000 | wc -l)."
 
 exit 0
-

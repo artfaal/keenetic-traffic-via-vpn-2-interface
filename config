@@ -1,8 +1,6 @@
 # Название интерфейса VPN-туннеля из ifconfig или ip address show
-IFACE1="ovpn_br0"
-IFACE2="nwg0"
-
+IFACE1="t2s_br0"
+IFACE2="t2s_br1"
 # Расположение файлов с адресами и доменами
 FILE1="/opt/etc/unblock/unblock-list1.txt"
 FILE2="/opt/etc/unblock/unblock-list2.txt"
-
