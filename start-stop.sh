@@ -6,7 +6,7 @@ CONFIG="/opt/etc/unblock/config"
 
 # https://github.com/ndmsystems/packages/wiki/Opkg-Component
 [ "$1" != "hook" ] && exit 0
-[ "$system_name" != "$IFACE" ] && exit 0
+[ "$system_name" != "$IFACE1" ] && [ "$system_name" != "$IFACE2" ] && exit 0
 
 kill_parser() {
   PIDFILE="${PIDFILE:-/tmp/parser.sh.pid}"
@@ -32,3 +32,4 @@ case ${connected}-${link}-${up} in
 esac
 
 exit 0
+

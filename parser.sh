@@ -1,7 +1,7 @@
 #!/bin/sh
 
 add_ip() {
-  ip route add table 1000 "$1" dev "$IFACE" 2>/dev/null
+  ip route add table 1000 "$1" dev "$2" 2>/dev/null
 }
 
 check_ip() {
@@ -46,22 +46,36 @@ PIDFILE="${PIDFILE:-/tmp/parser.sh.pid}"
 trap 'rm -f "$PIDFILE"' EXIT
 trap 'exit 2' INT TERM QUIT HUP
 
-[ -f "$FILE" ] || logger_failure "Отсутствует файл \"${FILE}\"."
+process_file() {
+  local _file="$1"
+  local _iface="$2"
 
-if ! ip address show dev "$IFACE" >/dev/null 2>&1; then
-  logger_failure "Не удалось обнаружить интерфейс \"${IFACE}\"."
-elif [ -z "$(ip link show "${IFACE}" up 2>/dev/null)" ]; then
-  logger_failure "Интерфейс \"${IFACE}\" отключен."
-fi
+  [ -f "$_file" ] || logger_failure "Отсутствует файл \"${_file}\"."
 
-for _attempt in $(seq 0 10); do
-  if dig +short +tries=1 ripe.net @localhost 2>/dev/null | grep -qvE '^$|^;'; then
-    break
-  elif [ "$_attempt" -eq 10 ]; then
-    logger_failure "Не удалось разрешить проверочное доменное имя."
+  if ! ip address show dev "$_iface" >/dev/null 2>&1; then
+    logger_failure "Не удалось обнаружить интерфейс \"${_iface}\"."
+  elif [ -z "$(ip link show "${_iface}" up 2>/dev/null)" ]; then
+    logger_failure "Интерфейс \"${_iface}\" отключен."
   fi
-  sleep 1
-done
+
+  logger_msg "Парсинг $(grep -c "" "$_file") строк(-и) в файле \"${_file}\"..."
+
+  while read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    [ "${line:0:1}" = "#" ] && continue
+
+    if check_ip "$line"; then
+      add_ip "$line" "$_iface"
+    else
+      dig_host=$(dig +short "$line" @localhost 2>&1 | grep -vE '[a-z]+' | cut_special)
+      if [ -n "$dig_host" ]; then
+        for i in $dig_host; do check_ip "$i" && add_ip "$i" "$_iface"; done
+      else
+        logger_msg "Не удалось разрешить доменное имя: строка \"${line}\" проигнорирована."
+      fi
+    fi
+  done < "$_file"
+}
 
 if ip route flush table 1000; then
   logger_msg "Таблица маршрутизации #1000 очищена."
@@ -69,24 +83,10 @@ else
   logger_failure "Не удалось очистить таблицу маршрутизации #1000."
 fi
 
-logger_msg "Парсинг $(grep -c "" "$FILE") строк(-и) в файле \"${FILE}\"..."
-
-while read -r line || [ -n "$line" ]; do
-  [ -z "$line" ] && continue
-  [ "${line:0:1}" = "#" ] && continue
-
-  if check_ip "$line"; then
-    add_ip "$line"
-  else
-    dig_host=$(dig +short "$line" @localhost 2>&1 | grep -vE '[a-z]+' | cut_special)
-    if [ -n "$dig_host" ]; then
-      for i in $dig_host; do check_ip "$i" && add_ip "$i"; done
-    else
-      logger_msg "Не удалось разрешить доменное имя: строка \"${line}\" проигнорирована."
-    fi
-  fi
-done < "$FILE"
+process_file "$FILE1" "$IFACE1"
+process_file "$FILE2" "$IFACE2"
 
 logger_msg "Парсинг завершен. #1000: $(ip route list table 1000 | wc -l)."
 
 exit 0
+

@@ -48,7 +48,7 @@ delete_file "/opt/etc/cron.daily/routing_table_update" "Симлинк" "сим�
 delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Симлинк" "симлинк"
 
 for _file in \
-  config parser.sh start-stop.sh uninstall.sh unblock-list.txt; do
+  config parser.sh start-stop.sh uninstall.sh unblock-list1.txt unblock-list2.txt; do
   delete_file "${PRJ_DIR}/${_file}"
 done
 
@@ -65,3 +65,4 @@ fi
 printf "%s\n" "---" "Удаление завершено."
 
 exit 0
+
